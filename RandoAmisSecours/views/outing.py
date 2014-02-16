@@ -23,52 +23,13 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.core.urlresolvers import reverse
 from django.db.models import Q
-from django.forms import ModelForm
 from django.http import Http404, HttpResponseRedirect
 from django.shortcuts import get_object_or_404, render_to_response
 from django.template import RequestContext
 from django.utils.translation import ugettext as _
 
+from RandoAmisSecours.forms import OutingForm
 from RandoAmisSecours.models import Outing, DRAFT, CONFIRMED, FINISHED
-
-
-class OutingForm(ModelForm):
-    class Meta:
-        model = Outing
-        fields = ('name', 'description', 'beginning', 'ending', 'alert', 'latitude', 'longitude')
-
-    def __init__(self, *args, **kwargs):
-        super(OutingForm, self).__init__(*args, **kwargs)
-        self.fields['name'].widget.attrs['placeholder'] = _('Outing name')
-        self.fields['name'].widget.attrs['autofocus'] = 'autofocus'
-        self.fields['description'].widget.attrs['placeholder'] = _('Description')
-        self.fields['latitude'].widget.attrs['placeholder'] = _('Latitude')
-        self.fields['longitude'].widget.attrs['placeholder'] = _('Longitude')
-
-        self.fields['name'].widget.attrs['class'] = 'form-control'
-        self.fields['description'].widget.attrs['class'] = 'form-control'
-        self.fields['beginning'].widget.attrs['class'] = 'form-control'
-        self.fields['ending'].widget.attrs['class'] = 'form-control'
-        self.fields['alert'].widget.attrs['class'] = 'form-control'
-        self.fields['latitude'].widget.attrs['class'] = 'form-control'
-        self.fields['longitude'].widget.attrs['class'] = 'form-control'
-
-    def clean(self):
-        cleaned_data = super(OutingForm, self).clean()
-        beginning = cleaned_data.get('beginning')
-        ending = cleaned_data.get('ending')
-        alert = cleaned_data.get('alert')
-
-        if beginning and ending and alert:
-            if beginning >= ending or ending >= alert:
-                self._errors['beginning'] = self.error_class([_('Beginning should happens first')])
-                self._errors['ending'] = self.error_class([_('Ending should happens after the beginning')])
-                self._errors['alert'] = self.error_class([_('Alert should happens at the end')])
-                del cleaned_data['beginning']
-                del cleaned_data['ending']
-                del cleaned_data['alert']
-
-        return cleaned_data
 
 
 @login_required
@@ -110,13 +71,14 @@ def details(request, outing_id):
 @login_required
 def create(request):
     if request.method == 'POST':
-        form = OutingForm(request.POST)
+        form = OutingForm(data=request.POST)
         if form.is_valid():
             outing = form.save(commit=False)
             outing.user = request.user
             outing.save()
             messages.success(request, _('Outing successfully created. The outing is still a draft and should be confirmed.'))
             return HttpResponseRedirect(reverse('outings.details', args=[outing.pk]))
+
     else:
         form = OutingForm()
 
