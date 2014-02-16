@@ -27,8 +27,10 @@ from django.http import Http404, HttpResponseRedirect
 from django.shortcuts import get_object_or_404, render_to_response
 from django.template import RequestContext
 from django.utils.translation import ugettext as _
+from django.views.generic import FormView, UpdateView, DeleteView
 
 from RandoAmisSecours.forms import OutingForm
+from RandoAmisSecours.mixins import OutingMixin
 from RandoAmisSecours.models import Outing, DRAFT, CONFIRMED, FINISHED
 
 
@@ -68,59 +70,135 @@ def details(request, outing_id):
                               context_instance=RequestContext(request))
 
 
-@login_required
-def create(request):
-    if request.method == 'POST':
-        form = OutingForm(data=request.POST)
-        if form.is_valid():
-            outing = form.save(commit=False)
-            outing.user = request.user
-            outing.save()
-            messages.success(request, _('Outing successfully created. The outing is still a draft and should be confirmed.'))
-            return HttpResponseRedirect(reverse('outings.details', args=[outing.pk]))
+class OutingCreate(FormView):
+    """ Create a new Outing
+    """
+    model = Outing
+    form_class = OutingForm
+    template_name = 'RandoAmisSecours/outing/create.html'
+    messages = {
+        "create_success": {
+            "level": messages.SUCCESS,
+            "text": _(u"Outing successfully created. The outing is still a draft and should be confirmed.")
+        },
+    }
 
-    else:
-        form = OutingForm()
+    def get_form_kwargs(self):
+        kwargs = super(OutingCreate, self).get_form_kwargs()
+        return kwargs
 
-    return render_to_response('RandoAmisSecours/outing/create.html',
-                              {'form': form},
-                              context_instance=RequestContext(request))
+    def form_valid(self, form):
+        self.object = form.save(commit=False)
+        self.object.user = self.request.user
+        self.object.save()
 
+        if self.messages.get("create_success"):
+            messages.add_message(
+                self.request,
+                self.messages["create_success"]["level"],
+                self.messages["create_success"]["text"]
+            )
 
-@login_required
-def update(request, outing_id):
-    outing = get_object_or_404(Outing, pk=outing_id)
+        return HttpResponseRedirect(self.get_success_url())
 
-    if outing.status == FINISHED:
-        raise Http404
-
-    if outing.user != request.user:
-        messages.error(request, _('Only the outing owner can update it'))
-        return HttpResponseRedirect(reverse('outings.details', args=[outing_id]))
-
-    if request.method == 'POST':
-        form = OutingForm(request.POST, instance=outing)
-        if form.is_valid():
-            outing = form.save()
-            return HttpResponseRedirect(reverse('outings.details', args=[outing.pk]))
-    else:
-        form = OutingForm(instance=outing)
-
-    return render_to_response('RandoAmisSecours/outing/create.html',
-                              {'form': form, 'update': True, 'outing': outing},
-                              context_instance=RequestContext(request))
+    def get_success_url(self):
+        return reverse("outings.details", kwargs={'outing_id': self.object.pk})
 
 
-@login_required
-def delete(request, outing_id):
-    outing = get_object_or_404(Outing, pk=outing_id)
-    if outing.user != request.user:
-        messages.error(request, _('Only the outing owner can delete it'))
-        return HttpResponseRedirect(reverse('outings.index'))
-    messages.success(request, _("«%(name)s» deleted") % ({'name': outing.name}))
-    outing.delete()
+class OutingUpdate(OutingMixin, UpdateView):
+    """ Update a outing
+    """
+    template_name = "RandoAmisSecours/outing/create.html"
+    form_class = OutingForm
+    messages = {
+        "update_success": {
+            "level": messages.SUCCESS,
+            "text": _(u"Outing successfully update.")
+        },
+        "permission_denied": {
+            "level": messages.WARNING,
+            "text": _(u"Only the outing owner can update it.")
+        }
+    }
 
-    return HttpResponseRedirect(reverse('outings.index'))
+    def get_form_kwargs(self):
+        kwargs = super(OutingUpdate, self).get_form_kwargs()
+        return kwargs
+
+    def get_context_data(self, **kwargs):
+        ctx = super(OutingUpdate, self).get_context_data(**kwargs)
+        ctx['update'] = True
+        return ctx
+
+    def get(self, request, *args, **kwargs):
+        """ Get Outing to update
+        """
+        self.object = self.get_outing()
+
+        if self.object.status == FINISHED:
+            raise Http404
+
+        if self.object.user != self.request.user:
+            if self.messages.get("permission_denied"):
+                messages.add_message(
+                    self.request,
+                    self.messages["permission_denied"]["level"],
+                    self.messages["permission_denied"]["text"]
+                )
+
+            return HttpResponseRedirect(self.get_success_url())
+
+        form_class = self.get_form_class()
+        form = self.get_form(form_class)
+        ctx = RequestContext(
+            self.request, self.get_context_data(form=form)
+        )
+        return UpdateView.render_to_response(self, ctx)
+
+    def get_success_url(self):
+        return reverse("outings.details", kwargs={
+            'outing_id': self.object.pk
+        })
+
+
+class OutingDelete(OutingMixin, DeleteView):
+    """ Delete a outing
+    """
+    messages = {
+        "delete_success": {
+            "level": messages.SUCCESS,
+            "text": _(u"Outing «%(name)s» successfully delete.")
+        },
+        "permission_denied": {
+            "level": messages.WARNING,
+            "text": _(u"Only the outing owner can delete it.")
+        }
+    }
+
+    def get(self, request, **kwargs):
+        self.object = self.get_outing()
+
+        if self.object.user != self.request.user:
+            if self.messages.get("permission_denied"):
+                messages.add_message(
+                    self.request,
+                    self.messages["permission_denied"]["level"],
+                    self.messages["permission_denied"]["text"]
+                )
+
+        else:
+            self.object.delete()
+
+            if self.messages.get("delete_success"):
+                messages.add_message(
+                    self.request,
+                    self.messages["delete_success"]["level"],
+                    self.messages["delete_success"]["text"] % {
+                        "name": self.object.name
+                    }
+                )
+
+        return HttpResponseRedirect(reverse("outings.index"))
 
 
 @login_required
