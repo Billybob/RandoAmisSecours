@@ -80,11 +80,16 @@ class FriendRequest(models.Model):
         return "%s => %s" % (self.user.get_full_name(), self.to.get_full_name())
 
 
+class OutingManager(models.Manager):
+
+    def get_friends(self, user):
+        """ get my friends
+        """
+        return True if self.user.profile in user.profile.friends.all() else False
+
+
 @python_2_unicode_compatible
 class Outing(models.Model):
-    class Meta:
-        app_label = 'RandoAmisSecours'
-        ordering = ['beginning', 'ending', 'alert', 'name']
 
     user = models.ForeignKey(User)
 
@@ -101,6 +106,12 @@ class Outing(models.Model):
     # Position on the map
     latitude = models.FloatField()
     longitude = models.FloatField()
+
+    objects = OutingManager()
+
+    class Meta:
+        app_label = 'RandoAmisSecours'
+        ordering = ['beginning', 'ending', 'alert', 'name']
 
     def __str__(self):
         return "%s: %s" % (self.user.get_full_name(), self.name)
@@ -122,6 +133,11 @@ class Outing(models.Model):
             return (((self.ending - self.beginning).total_seconds()) / float((self.alert - self.beginning).total_seconds()) * 100,
                     ((current_time - self.ending).total_seconds()) / float((self.alert - self.beginning).total_seconds()) * 100,
                     0)
+
+    def is_friend(self, user):
+        """ Check if user is my friend
+        """
+        return True if self.user.profile in user.profile.friends.all() else False
 
     def is_running(self):
         """ Return True if beginning <= now < end """

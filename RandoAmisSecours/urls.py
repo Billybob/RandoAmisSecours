@@ -20,25 +20,31 @@
 from __future__ import unicode_literals
 
 from django.conf.urls import include, patterns, url
+from django.contrib.auth.decorators import login_required
 from django.core.urlresolvers import reverse_lazy
+
 from tastypie.api import Api
 
 from RandoAmisSecours.api import OutingResource, ProfileResource, UserResource
+from RandoAmisSecours.views.outing import OutingDetail, OutingCreate, OutingUpdate, OutingDelete, ConfirmOuting, FinishOuting
 from RandoAmisSecours.views.account import RASAuthenticationForm, RASPasswordChangeForm, RASPasswordResetForm, RASSetPasswordForm
 
 
 # Main page
-urlpatterns = patterns('RandoAmisSecours.views.main',
+urlpatterns = patterns(
+    'RandoAmisSecours.views.main',
     url(r'^$', 'index', name='index'),
 )
 
-urlpatterns += patterns('RandoAmisSecours.views.help',
+urlpatterns += patterns(
+    'RandoAmisSecours.views.help',
     url(r'^help/$', 'index', name='help.index'),
     url(r'^help/qa/$', 'qa', name='help.qa'),
 )
 
 # Authentication
-urlpatterns += patterns('django.contrib.auth.views',
+urlpatterns += patterns(
+    'django.contrib.auth.views',
     url(r'^accounts/login/$', 'login', {'template_name': 'RandoAmisSecours/account/login.html', 'authentication_form': RASAuthenticationForm}, name='accounts.login'),
     url(r'^accounts/logout/$', 'logout', {'template_name': 'RandoAmisSecours/account/logged_out.html'}, name='accounts.logout'),
     url(r'^accounts/password/change/$', 'password_change', {'template_name': 'RandoAmisSecours/account/password_change.html', 'password_change_form': RASPasswordChangeForm, 'post_change_redirect': reverse_lazy('accounts.password_change_done')}, name='accounts.password_change'),
@@ -47,7 +53,8 @@ urlpatterns += patterns('django.contrib.auth.views',
     url(r'^accounts/password/reset/complete/$', 'password_reset_complete', {'template_name': 'RandoAmisSecours/account/password_reset_complete.html'}, name='password_reset_complete'),
 )
 
-urlpatterns += patterns('RandoAmisSecours.views.account',
+urlpatterns += patterns(
+    'RandoAmisSecours.views.account',
     url(r'^accounts/register/$', 'register', name='accounts.register'),
     url(r'^accounts/register/(?P<user_id>\d+)/confirm/(?P<user_hash>\w+)/$', 'register_confirm', name='accounts.register.confirm'),
     url(r'^accounts/profile/$', 'profile', name='accounts.profile'),
@@ -58,7 +65,8 @@ urlpatterns += patterns('RandoAmisSecours.views.account',
 )
 
 # Friends
-urlpatterns += patterns('RandoAmisSecours.views.friends',
+urlpatterns += patterns(
+    'RandoAmisSecours.views.friends',
     url(r'^friends/search/$', 'search', name='friends.search'),
     url(r'^friends/invite/(?P<user_id>\d+)/$', 'invite', name='friends.invite'),
     url(r'^friends/accept/(?P<request_id>\d+)/$', 'accept', name='friends.accept'),
@@ -68,14 +76,34 @@ urlpatterns += patterns('RandoAmisSecours.views.friends',
 )
 
 # Outing
-urlpatterns += patterns('RandoAmisSecours.views.outing',
+urlpatterns += patterns(
+    'RandoAmisSecours.views.outing',
     url(r'^outings/$', 'index', name='outings.index'),
-    url(r'^outings/create/$', 'create', name='outings.create'),
-    url(r'^outings/(?P<outing_id>\d+)/$', 'details', name='outings.details'),
-    url(r'^outings/(?P<outing_id>\d+)/update/$', 'update', name='outings.update'),
-    url(r'^outings/(?P<outing_id>\d+)/delete/$', 'delete', name='outings.delete'),
-    url(r'^outings/(?P<outing_id>\d+)/confirm/$', 'confirm', name='outings.confirm'),
-    url(r'^outings/(?P<outing_id>\d+)/finish/$', 'finish', name='outings.finish'),
+    
+    url(r"^outings/create/$",
+        view=login_required(OutingCreate.as_view()),
+        name="outings.create"
+        ),
+    url(r"^outings/(?P<outing_id>\d+)/$",
+        view=login_required(OutingDetail.as_view()),
+        name="outings.details"
+        ),
+    url(r"^outings/(?P<outing_id>\d+)/update/$",
+        view=login_required(OutingUpdate.as_view()),
+        name="outings.update"
+        ),
+    url(r"^outings/(?P<outing_id>\d+)/delete/$",
+        view=login_required(OutingDelete.as_view()),
+        name="outings.delete"
+        ),
+    url(r"^outings/(?P<outing_id>\d+)/confirm/$",
+        view=login_required(ConfirmOuting.as_view()),
+        name="outings.confirm"
+        ),
+    url(r"^outings/(?P<outing_id>\d+)/finish/$",
+        view=login_required(FinishOuting.as_view()),
+        name="outings.finish"
+        ),
 )
 
 # API v1.0
@@ -84,6 +112,7 @@ api_1_0.register(OutingResource())
 api_1_0.register(ProfileResource())
 api_1_0.register(UserResource())
 
-urlpatterns += patterns('',
-  url(r'^api/', include(api_1_0.urls)),
+urlpatterns += patterns(
+    '',
+    url(r'^api/', include(api_1_0.urls)),
 )

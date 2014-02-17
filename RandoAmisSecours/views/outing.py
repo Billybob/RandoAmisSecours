@@ -22,12 +22,11 @@ from __future__ import unicode_literals
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.core.urlresolvers import reverse
-from django.db.models import Q
 from django.http import Http404, HttpResponseRedirect
-from django.shortcuts import get_object_or_404, render_to_response
+from django.shortcuts import render_to_response
 from django.template import RequestContext
 from django.utils.translation import ugettext as _
-from django.views.generic import FormView, UpdateView, DeleteView
+from django.views.generic import DetailView, FormView, UpdateView, DeleteView
 
 from RandoAmisSecours.forms import OutingForm
 from RandoAmisSecours.mixins import OutingMixin
@@ -57,17 +56,30 @@ def index(request):
                               context_instance=RequestContext(request))
 
 
-@login_required
-def details(request, outing_id):
-    # Return 404 if the outing does not belong to the user or his friends
-    outing = get_object_or_404(Outing, Q(user=request.user) | Q(user__profile__in=request.user.profile.friends.all()), pk=outing_id)
+class OutingDetail(OutingMixin, DetailView):
+    """ Outing detail
+        Return 404 if the outing does not belong to the user or his friends
+    """
+    template_name = "RandoAmisSecours/outing/details.html"
+    context_object_name = "outing"
 
-    return render_to_response('RandoAmisSecours/outing/details.html',
-                              {'outing': outing,
-                               'FINISHED': FINISHED,
-                               'CONFIRMED': CONFIRMED,
-                               'DRAFT': DRAFT},
-                              context_instance=RequestContext(request))
+    def get_object(self, **kwargs):
+        self.outing = super(OutingDetail, self).get_object()
+        is_friend = self.outing.is_friend(self.request.user)
+
+        if not (self.outing.user == self.request.user or is_friend):
+            raise Http404()
+        return self.outing
+
+    def get(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        ctx = RequestContext(self.request)
+        ctx["outing"] = self.object
+        ctx["FINISHED"] = FINISHED
+        ctx["CONFIRMED"] = CONFIRMED
+        ctx["DRAFT"] = DRAFT
+
+        return self.render_to_response(ctx)
 
 
 class OutingCreate(FormView):
@@ -201,27 +213,81 @@ class OutingDelete(OutingMixin, DeleteView):
         return HttpResponseRedirect(reverse("outings.index"))
 
 
-@login_required
-def confirm(request, outing_id):
-    outing = get_object_or_404(Outing, pk=outing_id)
-    if outing.user != request.user:
-        messages.error(request, _('Only the outing owner can update it'))
+class ConfirmOuting(OutingMixin, UpdateView):
+    """ Confirm outing
+    """
+    messages = {
+        "confirm_success": {
+            "level": messages.SUCCESS,
+            "text": _(u"«%(name)s» is now confirmed.")
+        },
+        "permission_denied": {
+            "level": messages.WARNING,
+            "text": _(u"Only the outing owner can update it.")
+        }
+    }
+
+    def get(self, request, *args, **kwargs):
+        self.object = self.get_outing()
+        
+        if self.object.user != self.request.user:
+            if self.messages.get("permission_denied"):
+                messages.add_message(
+                    self.request,
+                    self.messages["permission_denied"]["level"],
+                    self.messages["permission_denied"]["text"]
+                )
+        else:
+            self.object.status = CONFIRMED
+            self.object.save()
+
+            if self.messages.get("confirm_success"):
+                messages.add_message(
+                    self.request,
+                    self.messages["confirm_success"]["level"],
+                    self.messages["confirm_success"]["text"] % {
+                        "name": self.object.name
+                    }
+                )
+
         return HttpResponseRedirect(reverse('outings.index'))
 
-    outing.status = CONFIRMED
-    outing.save()
-    messages.success(request, _("«%(name)s» is now confirmed") % ({'name': outing.name}))
-    return HttpResponseRedirect(reverse('outings.index'))
 
+class FinishOuting(OutingMixin, UpdateView):
+    """ Mark outing finished
+    """
+    messages = {
+        "finish_success": {
+            "level": messages.SUCCESS,
+            "text": _(u"«%(name)s» is now finished.")
+        },
+        "permission_denied": {
+            "level": messages.WARNING,
+            "text": _(u"Only the outing owner can finish it.")
+        }
+    }
 
-@login_required
-def finish(request, outing_id):
-    outing = get_object_or_404(Outing, pk=outing_id)
-    if outing.user != request.user:
-        messages.error(request, _('Only the outing owner can finish it'))
+    def get(self, request, *args, **kwargs):
+        self.object = self.get_outing()
+        
+        if self.object.user != self.request.user:
+            if self.messages.get("permission_denied"):
+                messages.add_message(
+                    self.request,
+                    self.messages["permission_denied"]["level"],
+                    self.messages["permission_denied"]["text"]
+                )
+        else:
+            self.object.status = FINISHED
+            self.object.save()
+
+            if self.messages.get("finish_success"):
+                messages.add_message(
+                    self.request,
+                    self.messages["finish_success"]["level"],
+                    self.messages["finish_success"]["text"] % {
+                        "name": self.object.name
+                    }
+                )
+
         return HttpResponseRedirect(reverse('outings.index'))
-
-    outing.status = FINISHED
-    outing.save()
-    messages.success(request, _("«%(name)s» is now finished") % ({'name': outing.name}))
-    return HttpResponseRedirect(reverse('outings.index'))
