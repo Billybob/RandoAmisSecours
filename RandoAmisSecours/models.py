@@ -80,14 +80,6 @@ class FriendRequest(models.Model):
         return "%s => %s" % (self.user.get_full_name(), self.to.get_full_name())
 
 
-class OutingManager(models.Manager):
-
-    def get_friends(self, user):
-        """ get my friends
-        """
-        return True if self.user.profile in user.profile.friends.all() else False
-
-
 @python_2_unicode_compatible
 class Outing(models.Model):
 
@@ -106,8 +98,6 @@ class Outing(models.Model):
     # Position on the map
     latitude = models.FloatField()
     longitude = models.FloatField()
-
-    objects = OutingManager()
 
     class Meta:
         app_label = 'RandoAmisSecours'
