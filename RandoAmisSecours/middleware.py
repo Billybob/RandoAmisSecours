@@ -18,12 +18,41 @@
 # along with RandoAmisSecours.  If not, see <http://www.gnu.org/licenses/>
 
 from __future__ import unicode_literals
-
-from django.utils import timezone
-
 import pytz
 
+from django.utils import timezone, translation
+from django.utils.cache import patch_vary_headers
 
+
+class LocaleMiddleware(object):
+    """
+        MIDDLEWARE_CLASSES = [
+            ...
+            "RandoAmisSecours.middleware.LocaleMiddleware",
+            ...
+        ]
+    """
+    
+    def get_language_for_user(self, request):
+        if request.user.is_authenticated():
+            try:
+                profile = Profile.objects.get(user=request.user)
+                return profile.language
+            except Profile.DoesNotExist:
+                pass
+        return translation.get_language_from_request(request)
+    
+    def process_request(self, request):
+        translation.activate(self.get_language_for_user(request))
+        request.LANGUAGE_CODE = translation.get_language()
+    
+    def process_response(self, request, response):
+        patch_vary_headers(response, ("Accept-Language",))
+        response["Content-Language"] = translation.get_language()
+        translation.deactivate()
+        return response
+        
+        
 class TimezoneMiddleware(object):
     def process_request(self, request):
         tz = request.session.get('django_timezone')
