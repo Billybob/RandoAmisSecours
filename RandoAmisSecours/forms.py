@@ -36,19 +36,19 @@ class OutingForm(forms.ModelForm):
         })
     )
     beginning = forms.DateTimeField(
-        required=True, label=_("Begin"),
+        required=True, label=_("Begin"), input_formats=['%Y-%m-%d %H:%M', '%d/%m/%Y %H:%M'],
         widget=forms.DateTimeInput(attrs={
             'class': 'form-control'
         })
     )
     ending = forms.DateTimeField(
-        required=True, label=_("End"),
+        required=True, label=_("End"), input_formats=['%Y-%m-%d %H:%M', '%d/%m/%Y %H:%M'],
         widget=forms.DateTimeInput(attrs={
             'class': 'form-control'
         })
     )
     alert = forms.DateTimeField(
-        required=True, label=_("Alert"),
+        required=True, label=_("Alert"), input_formats=['%Y-%m-%d %H:%M', '%d/%m/%Y %H:%M'],
         widget=forms.DateTimeInput(attrs={
             'class': 'form-control'
         })
